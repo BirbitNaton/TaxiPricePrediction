@@ -41,7 +41,7 @@ CREATE TABLE trip_data(
     dropoff_location_id INTEGER
 );
 
-COPY zone_geo_temp FROM '../data/taxi_zone_geo.csv' DELIMITER ',' CSV HEADER NULL AS 'null' ;
+COPY zone_geo_temp FROM 'data/taxi_zone_geo.csv' DELIMITER ',' CSV HEADER NULL AS 'null' ;
 
 INSERT INTO zone_geo
 SELECT DISTINCT ON (zone_id) *
@@ -49,7 +49,7 @@ FROM zone_geo_temp;
 
 DROP TABLE zone_geo_temp;
 
-COPY trip_data FROM '../data/taxi_trip_data.csv' DELIMITER ',' CSV HEADER NULL AS 'null';
+COPY trip_data FROM 'data/taxi_trip_data.csv' DELIMITER ',' CSV HEADER NULL AS 'null';
 
 DELETE FROM trip_data
 WHERE pickup_location_id IN (
