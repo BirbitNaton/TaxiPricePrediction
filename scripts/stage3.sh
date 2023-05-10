@@ -18,3 +18,5 @@ cat root/q6/* >> output/q6.csv
 pip install pyproj
 pip install shapely
 spark-submit --jars /usr/hdp/current/hive-client/lib/hive-metastore-1.2.1000.2.6.5.0-292.jar,/usr/hdp/current/hive-client/lib/hive-exec-1.2.1000.2.6.5.0-292.jar --packages org.apache.spark:spark-avro_2.12:3.0.3 scripts/bigdataproject.py
+cat output/GBT_predictions.csv/*.csv >> output/model1_predictions.csv
+cat output/random_forest_predictions.csv/*.csv >> output/model2_predictions.csv
