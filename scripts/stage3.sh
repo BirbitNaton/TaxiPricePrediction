@@ -21,7 +21,7 @@ spark-submit --jars /usr/hdp/current/hive-client/lib/hive-metastore-1.2.1000.2.6
 
 rm -rf output/model1_predictions.csv
 rm -rf output/model2_predictions.csv
-cat output/GBT_predictions.csv/*.csv >> output/model1_predictions.csv
-cat output/random_forest_predictions.csv/*.csv >> output/model2_predictions.csv
+cat output/GBT_predictions.csv/*.csv >> output/model2_predictions.csv
+cat output/random_forest_predictions.csv/*.csv >> output/model1_predictions.csv
 rm -rf output/GBT_predictions.csv
 rm -rf output/random_forest_predictions.csv

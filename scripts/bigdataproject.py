@@ -104,7 +104,7 @@ pred.coalesce(1)\
     .option("header","true")\
     .csv("output/random_forest_predictions.csv")
 
-print("Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
+print("RF Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
 
 gbtr = GBTRegressor(featuresCol='features', labelCol="total_amount", predictionCol="prediction")
 
@@ -141,5 +141,5 @@ pred.coalesce(1)\
     
 clf_cv.bestModel.write().overwrite().save("model/GBT_model")
 
-print("Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
+print("GBT Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
 

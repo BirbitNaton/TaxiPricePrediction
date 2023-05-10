@@ -90,3 +90,43 @@ sns.heatmap(square, cmap="Greens")
 st.pyplot(fig)
 
 st.write("All 3 plots show heatmaps of features aggregated against month and hour. On the 1st plot we see a spike on March and a dark line at night, suggesting fewer people at that hour regardless of the month (except said spike on March), yields mediated correlation with price. Second heatmap shows max_fare. The feature is noisy, but we can see lower values at night, supports previous point. On the third plot we see average fare drop late at night and spikes around 4pm and 5am. Taking closer look, we can notice how cells on spring and later autumn are ever so slightly brighter, so seasons might matter")
+
+st.write("## GBT model prediction results")
+gbtr = pd.read_csv("output/model2_predictions.csv").reset_index()
+st.write(gbtr.head())
+st.write("Metrics. RMSE: 4.75, R^2: 0.87")
+
+plt.gcf().set_dpi(600)
+fig = plt.figure(figsize=(15, 10))
+sns.lineplot(x='index', y='value', hue='variable', data=pd.melt(gbtr, ['index']), linewidth=0.1, alpha=0.7)
+st.pyplot(fig)
+
+st.write("The first graph shows GBT Regressor's predictions (blue) along with real test values (orange). It shows decent overall results, despite some abysmal gaps on big spikes as the dataset still contains some noise, especially it concerns abnormally big values")
+
+plt.gcf().set_dpi(600)
+fig = plt.figure(figsize=(15, 10))
+temp = gbtr.copy()
+temp['diff'] = temp['prediction']-temp['total_amount']
+sns.lineplot(x='index', y='diff', data=temp, linewidth=0.1)
+st.pyplot(fig)
+
+st.write("Second graph shows the exact difference of prediction and real text values. Here we clearly see places where the model hiccups. Again, it's mostly the problem of the spikes. For an empirical reference you can consider prices in the range $40-80 to be 'normal' - that shows the scale.")
+
+st.write("## Random Forest model prediction results")
+rfr = pd.read_csv("output/model1_predictions.csv").reset_index()
+st.write(rfr.head())
+st.write("Metrics. RMSE: 4.42, R^2: 0.88")
+
+plt.gcf().set_dpi(600)
+fig = plt.figure(figsize=(15, 10))
+sns.lineplot(x='index', y='value', hue='variable', data=pd.melt(rfr, ['index']), linewidth=0.1, alpha=0.7)
+st.pyplot(fig)
+
+plt.gcf().set_dpi(600)
+fig = plt.figure(figsize=(15, 10))
+temp = rfr.copy()
+temp['diff'] = temp['prediction']-temp['total_amount']
+sns.lineplot(x='index', y='diff', data=temp, linewidth=0.1, alpha=0.7)
+st.pyplot(fig)
+
+st.write("These two graphs feature the same logic as the first and second, but for random forest regressor. Here we see that it's performance on spikes is better and that it arguably closer oscillates near the 0.")
