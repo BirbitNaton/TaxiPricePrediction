@@ -1,5 +1,7 @@
 from pyspark.sql import SparkSession
 
+from pyspark.sql import SparkSession
+
 spark = SparkSession.builder\
         .appName("BDT Project")\
         .config("spark.sql.catalogImplementation","hive")\
@@ -7,6 +9,8 @@ spark = SparkSession.builder\
         .config("spark.sql.avro.compression.codec", "snappy")\
         .enableHiveSupport()\
         .getOrCreate()
+sc = spark.sparkContext
+sc.setLogLevel("WARN")
 
 trips = spark.read.format("avro").table('projectdb.trip_data')
 trips.createOrReplaceTempView('trips')
@@ -17,51 +21,16 @@ geo.createOrReplaceTempView('geo')
 from pyspark.sql.types import StructType, StringType, IntegerType, TimestampType, FloatType, DoubleType
 from pyspark.sql.functions import col, year, month, dayofmonth, udf, hour, minute, max, sin, cos, col, from_unixtime
 from pyspark.ml.feature import MinMaxScaler, VectorAssembler, VectorIndexer
-from pyspark.ml.regression import RandomForestRegressor
+from pyspark.ml.regression import RandomForestRegressor, GBTRegressor
 from pyspark.ml.evaluation import RegressionEvaluator
 from pyspark.ml import Transformer, Pipeline
 from pyspark.ml.tuning import ParamGridBuilder, CrossValidator
-# from matplotlib import pyplot as plt
 import numpy as np
 import shapely.wkt as poly
 import pyproj
-# from functools import partial
 from shapely.geometry import shape
 from shapely.ops import transform
 
-# trip_schema = StructType() \
-#     .add("vendor_id",IntegerType(),True) \
-#     .add("pickup_datetime",TimestampType(),True) \
-#     .add("dropoff_datetime",TimestampType(),True) \
-#     .add("passenger_count",IntegerType(),True) \
-#     .add("trip_distance",FloatType(),True) \
-#     .add("rate_code",IntegerType(),True) \
-#     .add("store_and_fwd_flag",StringType(),True) \
-#     .add("payment_type",IntegerType(),True) \
-#     .add("fare_amount",FloatType(),True) \
-#     .add("extra",FloatType(),True) \
-#     .add("mta_tax",FloatType(),True)\
-#     .add("tip_amount",FloatType(),True)\
-#     .add("tolls_amount",FloatType(),True) \
-#     .add("imp_surcharge",FloatType(),True) \
-#     .add("total_amount",FloatType(),True) \
-#     .add("pickup_location_id",IntegerType(),True) \
-#     .add("dropoff_location_id",IntegerType(),True)
-
-# geo_schema = StructType() \
-#     .add("zone_id",IntegerType(),True) \
-#     .add("zone_name",StringType(),True) \
-#     .add("borough",StringType(),True) \
-#     .add("zone_geom",StringType(),True)
-
-# trips = spark.read.csv("taxi_trip_data.csv", header = True, schema = trip_schema, multiLine=True, escape="\"")
-# geo = spark.read.csv("taxi_zone_geo.csv", header = True, schema = geo_schema, multiLine=True, escape="\"")
-# trips
-
-pos_distance = (trips.trip_distance > 0)
-pos_total = (trips.total_amount > 0)
-pos_passengers = (trips.passenger_count > 0)
-pos_fare = (trips.fare_amount > 0)
 columns_needed = ["pickup_datetime", 'dropoff_datetime', 'passenger_count', 'trip_distance', 
                   'rate_code', 'payment_type', 'pickup_location_id', 'dropoff_location_id', 'total_amount']
 trips = trips.withColumn("total_amount", trips.total_amount - trips.tip_amount)
@@ -94,89 +63,83 @@ trips = trips.dropna()
 trips = trips.withColumn("trip_distance", trips["trip_distance"].cast(DoubleType()))
 trips.show(10)
 
-# proj = partial(pyproj.transform, pyproj.Proj(init='epsg:4326'),
-#                 pyproj.Proj(init='epsg:3857'))
-# def poly_area(polygon):
-#     polygon = poly.loads(polygon)
-#     return transform(proj, shape(polygon)).area
-# get_area = udf(lambda x: poly_area(x), DoubleType())
-# trips = trips.withColumn("dropoff_polygon", get_area("dropoff_polygon"))
-# trips = trips.withColumn("pickup_polygon", get_area("pickup_polygon"))
 
-# # preprocessed_dataset = trips #.limit(100)
-# feature_list = ['passenger_count', 'trip_distance', 'rate_code', 'payment_type', 'pickup_location_id', 
-#                   'dropoff_location_id', 'dropoff_time_sin', 'dropoff_time_cos', 'pickup_time_sin', 'pickup_time_cos']
-# assembler = VectorAssembler(inputCols=feature_list, outputCol="features")
-# # preprocessed_dataset = assembler.transform(preprocessed_dataset)
-
-# rfr = RandomForestRegressor(featuresCol='features', labelCol="total_amount", predictionCol="prediction")
-# rfr_evaluator = RegressionEvaluator(labelCol="total_amount", predictionCol="prediction", metricName="rmse")
-
-# pipeline = Pipeline(stages=[assembler, rfr])
-# paramGrid = ParamGridBuilder() \
-#     .addGrid(rfr.numTrees, list(range(10, 151, 10))) \
-#     .addGrid(rfr.maxDepth, list(range(5, 26, 5))) \
-#     .build()
-
-# crossval = CrossValidator(estimator=rfr,
-#                           estimatorParamMaps=paramGrid,
-#                           evaluator=rfr_evaluator,
-#                           numFolds=5)
-
-# (train, test) = (train, test) = assembler.transform(trips).randomSplit([0.8, 0.2])
-# clf_cv = crossval.fit(train)
-# pred = clf_cv.transform(test)
-
-# rmse = rfr_evaluator.evaluate(pred)
-
-# bestPipeline = clf_cv.bestModel
-# bestModel = bestPipeline.stages[1]
-
-# rmse, bestModel.getNumTrees, bestModel.getOrDefault('maxDepth')
-
-preprocessed_dataset = trips #.limit(100)
+preprocessed_dataset = trips.limit(20000)
 feature_list = ['passenger_count', 'trip_distance', 'rate_code', 'payment_type', 'pickup_location_id', 
                   'dropoff_location_id', 'dropoff_time_sin', 'dropoff_time_cos', 'pickup_time_sin', 'pickup_time_cos']
 assembler = VectorAssembler(inputCols=feature_list, outputCol="features")
 
 rfr = RandomForestRegressor(featuresCol='features', labelCol="total_amount", predictionCol="prediction")
-rfr_evaluator = RegressionEvaluator(labelCol="total_amount", predictionCol="prediction", metricName="rmse")
+rmse_evaluator = RegressionEvaluator(labelCol="total_amount", predictionCol="prediction", metricName="rmse")
+r2_evaluator = RegressionEvaluator(labelCol="total_amount", predictionCol="prediction", metricName="r2")
 
 pipeline = Pipeline(stages=[assembler, rfr])
 paramGrid = ParamGridBuilder() \
-    .addGrid(rfr.numTrees, list(range(10, 151, 10))) \
-    .addGrid(rfr.maxDepth, list(range(5, 26, 5))) \
+    .addGrid(rfr.numTrees, [5, 15, 25]) \
+    .addGrid(rfr.maxDepth, [5, 8, 12]) \
     .build()
 
 crossval = CrossValidator(estimator=pipeline,
                           estimatorParamMaps=paramGrid,
-                          evaluator=rfr_evaluator,
-                          numFolds=5)
+                          evaluator=rmse_evaluator,
+                          numFolds=4)
 
-(train, test) = preprocessed_dataset.randomSplit([0.8, 0.2])
+(train, test) = preprocessed_dataset.randomSplit([0.7, 0.3])
 clf_cv = crossval.fit(train)
 pred = clf_cv.transform(test)
 
-rmse = rfr_evaluator.evaluate(pred)
+rmse = rmse_evaluator.evaluate(pred)
+r2 = r2_evaluator.evaluate(pred)
+
+bestPipeline = clf_cv.bestModel
+bestModel = bestPipeline.stages[1]
+clf_cv.bestModel.write().overwrite().save("model/random_forest_model")
+
+pred.coalesce(1)\
+    .select("prediction",'total_amount')\
+    .write\
+    .mode("overwrite")\
+    .format("csv")\
+    .option("sep", ",")\
+    .option("header","true")\
+    .csv("output/random_forest_predictions.csv")
+
+print("Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
+
+gbtr = GBTRegressor(featuresCol='features', labelCol="total_amount", predictionCol="prediction")
+
+pipeline = Pipeline(stages=[assembler, gbtr])
+paramGrid = ParamGridBuilder() \
+    .addGrid(gbtr.stepSize , [0.1, 0.01, 0.05]) \
+    .addGrid(gbtr.maxDepth, [3, 5, 8]) \
+    .addGrid(gbtr.lossType ,  ['squared', 'absolute']) \
+    .build()
+
+crossval = CrossValidator(estimator=pipeline,
+                          estimatorParamMaps=paramGrid,
+                          evaluator=rmse_evaluator,
+                          numFolds=4)
+
+(train, test) = preprocessed_dataset.randomSplit([0.7, 0.3])
+clf_cv = crossval.fit(train)
+pred = clf_cv.transform(test)
+
+rmse = rmse_evaluator.evaluate(pred)
+r2 = r2_evaluator.evaluate(pred)
 
 bestPipeline = clf_cv.bestModel
 bestModel = bestPipeline.stages[1]
 
-rmse, bestModel.getNumTrees, bestModel.getOrDefault('maxDepth')
+pred.coalesce(1)\
+    .select("prediction",'total_amount')\
+    .write\
+    .mode("overwrite")\
+    .format("csv")\
+    .option("sep", ",")\
+    .option("header","true")\
+    .csv("output/GBT_predictions.csv")
+    
+clf_cv.bestModel.write().overwrite().save("model/GBT_model")
 
-# plt.figure(figsize=(20,6))
-
-importances = bestModel.featureImportances
-x_values = list(range(len(importances)))
-
-# plt.bar(x_values, importances, orientation = 'vertical')
-# plt.xticks(x_values, feature_list)
-# plt.ylabel('Importance')
-# plt.xlabel('Feature')
-# plt.title('Feature Importances')
-
-# while True:
-#     pass
-
-
+print("Metrics. RMSE: "+str(rmse)+", R^2: "+str(r2))
 
